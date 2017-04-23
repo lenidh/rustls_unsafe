@@ -15,6 +15,9 @@ use std::io;
 /// Disable all verifications, for testing purposes.
 const DANGEROUS_DISABLE_VERIFY: bool = false;
 
+const DISABLE_TRUST_CHAIN_CHECK: bool = true;
+const DISABLE_SERVER_NAME_CHECK: bool = true;
+
 type SignatureAlgorithms = &'static [&'static webpki::SignatureAlgorithm];
 
 /// Which signature verification mechanisms we support.  No particular
@@ -171,10 +174,14 @@ fn verify_common_cert<'a>(roots: &RootCertStore,
         .map(|cert| untrusted::Input::from(&cert.0))
         .collect();
 
-    let trustroots: Vec<webpki::TrustAnchor> = roots.roots
-        .iter()
-        .map(|x| x.to_trust_anchor())
-        .collect();
+    let trustroots: Vec<webpki::TrustAnchor> = if DISABLE_TRUST_CHAIN_CHECK {
+        vec!(webpki::trust_anchor_util::cert_der_as_trust_anchor(cert_der).unwrap())
+    } else {
+        roots.roots
+            .iter()
+            .map(|x| x.to_trust_anchor())
+            .collect()
+    };
 
     if DANGEROUS_DISABLE_VERIFY {
         warn!("DANGEROUS_DISABLE_VERIFY is turned on, skipping certificate verification");
@@ -197,6 +204,10 @@ pub fn verify_server_cert(roots: &RootCertStore,
 
     if DANGEROUS_DISABLE_VERIFY {
         warn!("DANGEROUS_DISABLE_VERIFY is turned on, skipping server name verification");
+        return Ok(());
+    }
+
+    if DISABLE_SERVER_NAME_CHECK {
         return Ok(());
     }
 
